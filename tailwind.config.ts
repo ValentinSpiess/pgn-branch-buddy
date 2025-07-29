@@ -55,6 +55,7 @@ export default {
 				chess: {
 					light: 'hsl(var(--chess-light))',
 					dark: 'hsl(var(--chess-dark))',
+					border: 'hsl(var(--chess-border))',
 					highlight: 'hsl(var(--chess-highlight))',
 					selected: 'hsl(var(--chess-selected))'
 				},

@@ -39,11 +39,12 @@ All colors MUST be HSL.
     --ring: 25 30% 25%;
 
     /* Chess-specific colors */
-    --chess-light: 40 45% 85%;
-    --chess-dark: 25 35% 45%;
+    --chess-light: 35 45% 85%;
+    --chess-dark: 25 35% 55%;
+    --chess-border: 25 45% 35%;
     --chess-highlight: 45 85% 75%;
     --chess-selected: 210 85% 75%;
-    
+
     /* Gradients */
     --gradient-board: linear-gradient(135deg, hsl(var(--chess-light)), hsl(40 35% 82%));
     --gradient-card: linear-gradient(145deg, hsl(var(--card)), hsl(35 15% 95%));
