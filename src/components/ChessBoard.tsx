@@ -14,7 +14,7 @@ export const ChessBoard = ({
   orientation = "white",
   allowMoves = true 
 }: ChessBoardProps) => {
-  const handlePieceDrop = (sourceSquare: string, targetSquare: string) => {
+  const handlePieceDrop = ({ sourceSquare, targetSquare }: { sourceSquare: string; targetSquare: string }) => {
     if (!allowMoves) return false;
     return onMove(sourceSquare, targetSquare);
   };
@@ -29,12 +29,11 @@ export const ChessBoard = ({
         }}
       >
         <Chessboard 
-          position={position}
-          onPieceDrop={handlePieceDrop}
-          boardOrientation={orientation}
-          areaPremovesAllowed={false}
-          animationDuration={200}
-          arePiecesDraggable={allowMoves}
+          options={{
+            position,
+            onPieceDrop: allowMoves ? handlePieceDrop : undefined,
+            boardOrientation: orientation
+          }}
         />
       </div>
     </div>
