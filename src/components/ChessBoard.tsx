@@ -21,7 +21,17 @@ export const ChessBoard = ({
   orientation = "white",
   allowMoves = true 
 }: ChessBoardProps) => {
-  const chess = new Chess(position);
+  // Use starting position as fallback if position is invalid
+  const validPosition = position || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+  
+  let chess;
+  try {
+    chess = new Chess(validPosition);
+  } catch (error) {
+    // Fallback to starting position if FEN is invalid
+    chess = new Chess();
+  }
+  
   const board = chess.board();
   
   const handleSquareClick = (fromSquare: string, toSquare: string) => {
