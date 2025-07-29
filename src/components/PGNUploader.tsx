@@ -6,11 +6,12 @@ import { Upload, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 interface PGNUploaderProps {
-  onPGNLoaded: (pgn: string) => void;
+  onPGNLoaded: (pgn: string, deckName?: string) => void;
 }
 
 export const PGNUploader = ({ onPGNLoaded }: PGNUploaderProps) => {
   const [pgnText, setPgnText] = useState('');
+  const [deckName, setDeckName] = useState('');
 
   const samplePGN = `[Event "Ruy Lopez Training"]
 [Site "Training"]
@@ -23,7 +24,8 @@ export const PGNUploader = ({ onPGNLoaded }: PGNUploaderProps) => {
 
   const handleLoadSample = () => {
     setPgnText(samplePGN);
-    onPGNLoaded(samplePGN);
+    setDeckName("Ruy Lopez Training");
+    onPGNLoaded(samplePGN, "Ruy Lopez Training");
     toast.success("Sample PGN loaded!");
   };
 
@@ -33,7 +35,8 @@ export const PGNUploader = ({ onPGNLoaded }: PGNUploaderProps) => {
       return;
     }
     
-    onPGNLoaded(pgnText);
+    const finalDeckName = deckName.trim() || "Untitled Deck";
+    onPGNLoaded(pgnText, finalDeckName);
     toast.success("PGN loaded successfully!");
   };
 
@@ -45,7 +48,9 @@ export const PGNUploader = ({ onPGNLoaded }: PGNUploaderProps) => {
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setPgnText(content);
-      onPGNLoaded(content);
+      const fileName = file.name.replace('.pgn', '');
+      setDeckName(fileName);
+      onPGNLoaded(content, fileName);
       toast.success("PGN file loaded!");
     };
     reader.readAsText(file);
@@ -68,6 +73,19 @@ export const PGNUploader = ({ onPGNLoaded }: PGNUploaderProps) => {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Deck Name:
+            </label>
+            <input
+              type="text"
+              value={deckName}
+              onChange={(e) => setDeckName(e.target.value)}
+              placeholder="Enter deck name (optional)"
+              className="w-full px-3 py-2 border border-input rounded-md bg-background"
+            />
+          </div>
+          
           <div>
             <label className="block text-sm font-medium mb-2">
               Paste PGN text:

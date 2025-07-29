@@ -9,6 +9,7 @@ type AppMode = 'upload' | 'variations' | 'training';
 const Index = () => {
   const [mode, setMode] = useState<AppMode>('upload');
   const [variations, setVariations] = useState<Variation[]>([]);
+  const [deckName, setDeckName] = useState<string>('');
   const [currentTraining, setCurrentTraining] = useState<{
     variation: Variation;
     positions: TrainingPosition[];
@@ -17,9 +18,10 @@ const Index = () => {
 
   const pgnParser = new PGNParser();
 
-  const handlePGNLoaded = (pgn: string) => {
+  const handlePGNLoaded = (pgn: string, name?: string) => {
     const parsedVariations = pgnParser.parsePGN(pgn);
     setVariations(parsedVariations);
+    setDeckName(name || 'Untitled Deck');
     setMode('variations');
   };
 
@@ -55,7 +57,7 @@ const Index = () => {
   return (
     <div className="container mx-auto p-6">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold mb-2">Chess Variations</h1>
+        <h1 className="text-3xl font-bold mb-2">{deckName}</h1>
         <p className="text-muted-foreground">
           Select a variation to start training
         </p>

@@ -29,30 +29,13 @@ export class PGNParser {
     const variations: Variation[] = [];
     
     try {
-      // Clean PGN by removing variations (parentheses) and comments
-      const cleanedPGN = this.cleanPGN(pgn);
-      
-      // Reset chess instance
-      this.chess.reset();
-      
-      // Load the cleaned PGN
-      this.chess.loadPgn(cleanedPGN);
-      
-      // Extract mainline
-      const history = this.chess.history({ verbose: true });
-      if (history.length > 0) {
-        const mainVariation: Variation = {
-          id: 'main',
-          name: 'Main Line',
-          moves: history.map(move => move.san),
-          mainline: true
-        };
-        variations.push(mainVariation);
-      }
+      // First extract all variations including the main line
+      const allVariations = this.extractAllVariations(pgn);
+      variations.push(...allVariations);
       
     } catch (error) {
       console.error('Error parsing PGN:', error);
-      // Try to extract moves manually if chess.js fails
+      // Fallback to manual extraction
       const manualMoves = this.extractMovesManually(pgn);
       if (manualMoves.length > 0) {
         const mainVariation: Variation = {
@@ -66,6 +49,102 @@ export class PGNParser {
     }
 
     return variations;
+  }
+
+  private extractAllVariations(pgn: string): Variation[] {
+    const variations: Variation[] = [];
+    
+    // Remove headers but keep the moves with variations intact
+    let gameText = pgn.replace(/\[[^\]]*\]/g, '');
+    gameText = gameText.replace(/\{[^}]*\}/g, ''); // Remove comments
+    gameText = gameText.replace(/\s*(1-0|0-1|1\/2-1\/2|\*)\s*$/, ''); // Remove result
+    gameText = gameText.replace(/\s+/g, ' ').trim();
+    
+    // Extract main line first
+    const mainLineMoves = this.extractMainLine(gameText);
+    if (mainLineMoves.length > 0) {
+      variations.push({
+        id: 'main',
+        name: 'Main Line',
+        moves: mainLineMoves,
+        mainline: true
+      });
+    }
+    
+    // Extract all variations
+    const variationMoves = this.extractVariations(gameText);
+    variationMoves.forEach((moves, index) => {
+      if (moves.length > 0) {
+        variations.push({
+          id: `variation-${index + 1}`,
+          name: `Variation ${index + 1}`,
+          moves: moves,
+          mainline: false
+        });
+      }
+    });
+    
+    return variations;
+  }
+
+  private extractMainLine(gameText: string): string[] {
+    // Remove all variations to get just the main line
+    let mainLine = gameText;
+    while (/\([^()]*\)/.test(mainLine)) {
+      mainLine = mainLine.replace(/\([^()]*\)/g, '');
+    }
+    
+    return this.parseMovesFromText(mainLine);
+  }
+
+  private extractVariations(gameText: string): string[][] {
+    const variations: string[][] = [];
+    const variationRegex = /\(([^()]+)\)/g;
+    
+    let match;
+    while ((match = variationRegex.exec(gameText)) !== null) {
+      const variationText = match[1];
+      const moves = this.parseMovesFromText(variationText);
+      if (moves.length > 0) {
+        variations.push(moves);
+      }
+    }
+    
+    // Handle nested variations by recursively processing
+    const nestedVariationRegex = /\([^()]*\([^()]*\)[^()]*\)/g;
+    if (nestedVariationRegex.test(gameText)) {
+      let processedText = gameText;
+      while (/\([^()]*\([^()]*\)[^()]*\)/.test(processedText)) {
+        processedText = processedText.replace(/\(([^()]*)\)/g, (match, content) => {
+          const moves = this.parseMovesFromText(content);
+          if (moves.length > 0) {
+            variations.push(moves);
+          }
+          return '';
+        });
+      }
+    }
+    
+    return variations;
+  }
+
+  private parseMovesFromText(text: string): string[] {
+    const moves: string[] = [];
+    
+    // Enhanced regex pattern to capture chess moves including castling and pawn captures
+    const movePattern = /\d+\.?\s*((?:O-O-O|O-O|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?))\s*((?:O-O-O|O-O|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?))?/g;
+    
+    let match;
+    while ((match = movePattern.exec(text)) !== null) {
+      if (match[1] && match[1].trim()) {
+        moves.push(match[1].trim());
+      }
+      if (match[2] && match[2].trim()) {
+        moves.push(match[2].trim());
+      }
+    }
+    
+    return moves;
   }
 
   private cleanPGN(pgn: string): string {
