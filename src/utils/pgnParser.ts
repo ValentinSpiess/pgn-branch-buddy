@@ -69,8 +69,13 @@ export class PGNParser {
   }
 
   private cleanPGN(pgn: string): string {
-    // Remove variations (content in parentheses)
-    let cleaned = pgn.replace(/\([^)]*\)/g, '');
+    // Remove PGN headers (everything in square brackets)
+    let cleaned = pgn.replace(/\[[^\]]*\]/g, '');
+    
+    // Remove variations (content in parentheses) recursively
+    while (/\([^()]*\)/.test(cleaned)) {
+      cleaned = cleaned.replace(/\([^()]*\)/g, '');
+    }
     
     // Remove comments in braces
     cleaned = cleaned.replace(/\{[^}]*\}/g, '');
@@ -78,7 +83,10 @@ export class PGNParser {
     // Remove move number indicators like "13..." 
     cleaned = cleaned.replace(/\d+\.\.\./g, '');
     
-    // Clean up extra whitespace
+    // Remove result indicators
+    cleaned = cleaned.replace(/\s*(1-0|0-1|1\/2-1\/2|\*)\s*$/, '');
+    
+    // Clean up extra whitespace and newlines
     cleaned = cleaned.replace(/\s+/g, ' ').trim();
     
     return cleaned;
@@ -87,16 +95,29 @@ export class PGNParser {
   private extractMovesManually(pgn: string): string[] {
     const moves: string[] = [];
     
-    // Remove headers and comments
-    const gameText = pgn.replace(/\[[^\]]*\]/g, '').replace(/\{[^}]*\}/g, '');
+    // Remove headers, comments, and variations
+    let gameText = pgn.replace(/\[[^\]]*\]/g, '');
+    gameText = gameText.replace(/\{[^}]*\}/g, '');
     
-    // Split by move numbers and extract moves
-    const movePattern = /\d+\.?\s*([NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQ])?[+#]?)\s*([NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQ])?[+#]?)?/g;
+    // Remove variations recursively
+    while (/\([^()]*\)/.test(gameText)) {
+      gameText = gameText.replace(/\([^()]*\)/g, '');
+    }
+    
+    // Remove result indicators
+    gameText = gameText.replace(/\s*(1-0|0-1|1\/2-1\/2|\*)\s*$/, '');
+    
+    // Enhanced regex pattern to capture chess moves including castling and pawn captures
+    const movePattern = /\d+\.?\s*((?:O-O-O|O-O|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?))\s*((?:O-O-O|O-O|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?))?/g;
     
     let match;
     while ((match = movePattern.exec(gameText)) !== null) {
-      if (match[1]) moves.push(match[1]);
-      if (match[2]) moves.push(match[2]);
+      if (match[1] && match[1].trim()) {
+        moves.push(match[1].trim());
+      }
+      if (match[2] && match[2].trim()) {
+        moves.push(match[2].trim());
+      }
     }
     
     return moves;
