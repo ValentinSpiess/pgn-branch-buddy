@@ -29,11 +29,14 @@ export class PGNParser {
     const variations: Variation[] = [];
     
     try {
+      // Clean PGN by removing variations (parentheses) and comments
+      const cleanedPGN = this.cleanPGN(pgn);
+      
       // Reset chess instance
       this.chess.reset();
       
-      // Load the PGN
-      this.chess.loadPgn(pgn);
+      // Load the cleaned PGN
+      this.chess.loadPgn(cleanedPGN);
       
       // Extract mainline
       const history = this.chess.history({ verbose: true });
@@ -46,15 +49,57 @@ export class PGNParser {
         };
         variations.push(mainVariation);
       }
-
-      // For now, we'll focus on the main line
-      // In a more advanced version, we'd parse variations from PGN comments
       
     } catch (error) {
       console.error('Error parsing PGN:', error);
+      // Try to extract moves manually if chess.js fails
+      const manualMoves = this.extractMovesManually(pgn);
+      if (manualMoves.length > 0) {
+        const mainVariation: Variation = {
+          id: 'main',
+          name: 'Main Line',
+          moves: manualMoves,
+          mainline: true
+        };
+        variations.push(mainVariation);
+      }
     }
 
     return variations;
+  }
+
+  private cleanPGN(pgn: string): string {
+    // Remove variations (content in parentheses)
+    let cleaned = pgn.replace(/\([^)]*\)/g, '');
+    
+    // Remove comments in braces
+    cleaned = cleaned.replace(/\{[^}]*\}/g, '');
+    
+    // Remove move number indicators like "13..." 
+    cleaned = cleaned.replace(/\d+\.\.\./g, '');
+    
+    // Clean up extra whitespace
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    
+    return cleaned;
+  }
+
+  private extractMovesManually(pgn: string): string[] {
+    const moves: string[] = [];
+    
+    // Remove headers and comments
+    const gameText = pgn.replace(/\[[^\]]*\]/g, '').replace(/\{[^}]*\}/g, '');
+    
+    // Split by move numbers and extract moves
+    const movePattern = /\d+\.?\s*([NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQ])?[+#]?)\s*([NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQ])?[+#]?)?/g;
+    
+    let match;
+    while ((match = movePattern.exec(gameText)) !== null) {
+      if (match[1]) moves.push(match[1]);
+      if (match[2]) moves.push(match[2]);
+    }
+    
+    return moves;
   }
 
   createTrainingPositions(variation: Variation, userColor: 'white' | 'black'): TrainingPosition[] {
