@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Chess } from "chess.js";
 
 interface ChessBoardProps {
@@ -21,6 +22,8 @@ export const ChessBoard = ({
   orientation = "white",
   allowMoves = true 
 }: ChessBoardProps) => {
+  const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  
   // Use starting position as fallback if position is invalid
   const validPosition = position || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
   
@@ -34,14 +37,37 @@ export const ChessBoard = ({
   
   const board = chess.board();
   
-  const handleSquareClick = (fromSquare: string, toSquare: string) => {
+  const handleSquareClick = (square: string) => {
     if (!allowMoves) return;
-    onMove(fromSquare, toSquare);
+    
+    if (selectedSquare === null) {
+      // First click - select a piece
+      const piece = getPieceAtSquare(square);
+      if (piece) {
+        setSelectedSquare(square);
+      }
+    } else if (selectedSquare === square) {
+      // Clicking the same square - deselect
+      setSelectedSquare(null);
+    } else {
+      // Second click - attempt to move
+      const moveSuccessful = onMove(selectedSquare, square);
+      setSelectedSquare(null); // Always clear selection after move attempt
+    }
+  };
+
+  const getPieceAtSquare = (square: string) => {
+    const file = square[0];
+    const rank = square[1];
+    const fileIndex = files.indexOf(file);
+    const rankIndex = ranks.indexOf(rank);
+    return board[rankIndex][fileIndex];
   };
 
   const renderSquare = (piece: any, file: string, rank: string) => {
     const square = file + rank;
     const isDark = (files.indexOf(file) + ranks.indexOf(rank)) % 2 === 1;
+    const isSelected = selectedSquare === square;
     const pieceSymbol = piece ? pieceUnicode[piece.color + piece.type.toUpperCase()] || '' : '';
     
     return (
@@ -49,10 +75,12 @@ export const ChessBoard = ({
         key={square}
         className={`
           w-12 h-12 flex items-center justify-center text-2xl cursor-pointer
+          transition-colors duration-200
           ${isDark ? 'bg-chess-dark' : 'bg-chess-light'}
-          ${allowMoves ? 'hover:bg-opacity-80' : ''}
+          ${isSelected ? 'bg-chess-selected' : ''}
+          ${allowMoves ? 'hover:bg-chess-highlight' : ''}
         `}
-        onClick={() => handleSquareClick(square, square)}
+        onClick={() => handleSquareClick(square)}
       >
         {pieceSymbol}
       </div>
