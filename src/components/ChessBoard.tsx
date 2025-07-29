@@ -1,3 +1,4 @@
+
 import { Chessboard } from "react-chessboard";
 
 interface ChessBoardProps {
@@ -27,7 +28,14 @@ export const ChessBoard = ({
           padding: '12px'
         }}
       >
-        <Chessboard />
+        <Chessboard 
+          position={position}
+          onPieceDrop={handlePieceDrop}
+          boardOrientation={orientation}
+          areaPremovesAllowed={false}
+          animationDuration={200}
+          arePiecesDraggable={allowMoves}
+        />
       </div>
     </div>
   );
