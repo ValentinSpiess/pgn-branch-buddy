@@ -62,15 +62,22 @@ function buildTree(
   let currentParent = parent;
 
   for (const m of moves) {
+    // Extract the move notation - handle different possible structures
+    const moveNotation = m.notation?.notation || m.move || m.san || m;
+    if (!moveNotation || typeof moveNotation !== 'string') {
+      console.warn('Skipping invalid move:', m);
+      continue;
+    }
+
     // 1️⃣ Advance a *copy* of the current board so sibling branches stay isolated.
     const nextBoard = new Chess(board.fen());
-    const legal = nextBoard.move(m.move, { strict: true });
-    if (!legal) throw new Error(`Illegal SAN detected: ${m.move}`);
+    const legal = nextBoard.move(moveNotation, { strict: true });
+    if (!legal) throw new Error(`Illegal SAN detected: ${moveNotation}`);
 
     // 2️⃣ Create the node for this move.
     const node: Node = {
       fen: board.fen(), // position *before* the move
-      move: m.move,
+      move: moveNotation,
       children: []
     };
     currentParent.children.push(node);

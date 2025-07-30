@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { PGNUploader } from "@/components/PGNUploader";
 import { VariationCard } from "@/components/VariationCard";
 import { TrainingMode } from "@/components/TrainingMode";
@@ -21,12 +22,21 @@ const Index = () => {
     try {
       const root = parseGame(pgn);
       const parsedVariations = extractVariationsFromTree(root);
+      
+      console.log('Parsed variations:', parsedVariations.length, parsedVariations);
+      
+      if (parsedVariations.length === 0) {
+        toast.error("Couldn't find any play-able moves in this PGN.");
+        return;
+      }
+      
       setVariations(parsedVariations);
       setDeckName(name || 'Untitled Deck');
+      console.log('Setting mode to variations');
       setMode('variations');
     } catch (error) {
       console.error("Error parsing PGN:", error);
-      // Handle error - maybe show a toast or stay in upload mode
+      toast.error("Failed to parse PGN. Please check the format.");
     }
   };
 
@@ -58,6 +68,8 @@ const Index = () => {
       />
     );
   }
+
+  console.log('Current mode:', mode, 'Variations count:', variations.length);
 
   return (
     <div className="container mx-auto p-6">
