@@ -29,8 +29,11 @@ export class PGNParser {
     const variations: Variation[] = [];
     
     try {
-      // First extract all variations including the main line
-      const allVariations = this.extractAllVariations(pgn);
+      // Clean the PGN first
+      const cleanedPgn = this.cleanPGNForParsing(pgn);
+      
+      // Parse variations with proper branching
+      const allVariations = this.extractVariationsWithBranching(cleanedPgn);
       variations.push(...allVariations);
       
     } catch (error) {
@@ -51,40 +54,166 @@ export class PGNParser {
     return variations;
   }
 
-  private extractAllVariations(pgn: string): Variation[] {
+  private cleanPGNForParsing(pgn: string): string {
+    // Remove PGN headers
+    let cleaned = pgn.replace(/\[[^\]]*\]/g, '');
+    
+    // Remove comments in braces
+    cleaned = cleaned.replace(/\{[^}]*\}/g, '');
+    
+    // Remove Lichess annotations like [%cal ...]
+    cleaned = cleaned.replace(/\[%[^\]]*\]/g, '');
+    
+    // Remove result indicators
+    cleaned = cleaned.replace(/\s*(1-0|0-1|1\/2-1\/2|\*)\s*$/, '');
+    
+    // Clean up extra whitespace
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    
+    return cleaned;
+  }
+
+  private extractVariationsWithBranching(gameText: string): Variation[] {
     const variations: Variation[] = [];
+    const parsedVariations = this.parseVariationTree(gameText);
     
-    // Remove headers but keep the moves with variations intact
-    let gameText = pgn.replace(/\[[^\]]*\]/g, '');
-    gameText = gameText.replace(/\{[^}]*\}/g, ''); // Remove comments
-    gameText = gameText.replace(/\s*(1-0|0-1|1\/2-1\/2|\*)\s*$/, ''); // Remove result
-    gameText = gameText.replace(/\s+/g, ' ').trim();
+    // Convert parsed tree to flat variations
+    this.flattenVariations(parsedVariations.mainLine, parsedVariations.variations, [], variations);
     
-    // Extract main line first
-    const mainLineMoves = this.extractMainLine(gameText);
-    if (mainLineMoves.length > 0) {
-      variations.push({
+    return variations;
+  }
+
+  private parseVariationTree(text: string): { mainLine: string[], variations: Array<{ startIndex: number, moves: string[], subVariations: any[] }> } {
+    const tokens = this.tokenizePGN(text);
+    const result = this.parseTokens(tokens);
+    return result;
+  }
+
+  private tokenizePGN(text: string): Array<{ type: 'move' | 'open' | 'close', value: string, position: number }> {
+    const tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number }> = [];
+    let i = 0;
+    
+    while (i < text.length) {
+      if (text[i] === '(') {
+        tokens.push({ type: 'open', value: '(', position: i });
+        i++;
+      } else if (text[i] === ')') {
+        tokens.push({ type: 'close', value: ')', position: i });
+        i++;
+      } else if (text[i] === ' ') {
+        i++;
+      } else {
+        // Parse move
+        const moveMatch = text.slice(i).match(/^(\d+\.{1,3}\s*)?((?:O-O-O|O-O|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?))/);
+        if (moveMatch) {
+          tokens.push({ type: 'move', value: moveMatch[2], position: i });
+          i += moveMatch[0].length;
+        } else {
+          i++;
+        }
+      }
+    }
+    
+    return tokens;
+  }
+
+  private parseTokens(tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number }>): { mainLine: string[], variations: Array<{ startIndex: number, moves: string[], subVariations: any[] }> } {
+    const mainLine: string[] = [];
+    const variations: Array<{ startIndex: number, moves: string[], subVariations: any[] }> = [];
+    let i = 0;
+    
+    while (i < tokens.length) {
+      if (tokens[i].type === 'move') {
+        mainLine.push(tokens[i].value);
+        i++;
+      } else if (tokens[i].type === 'open') {
+        // Start of variation
+        const startIndex = mainLine.length;
+        const variationResult = this.parseVariation(tokens, i + 1);
+        variations.push({
+          startIndex,
+          moves: variationResult.moves,
+          subVariations: variationResult.subVariations
+        });
+        i = variationResult.endIndex;
+      } else {
+        i++;
+      }
+    }
+    
+    return { mainLine, variations };
+  }
+
+  private parseVariation(tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number }>, startIndex: number): { moves: string[], subVariations: any[], endIndex: number } {
+    const moves: string[] = [];
+    const subVariations: any[] = [];
+    let i = startIndex;
+    let depth = 1;
+    
+    while (i < tokens.length && depth > 0) {
+      if (tokens[i].type === 'move') {
+        moves.push(tokens[i].value);
+        i++;
+      } else if (tokens[i].type === 'open') {
+        depth++;
+        const subStartIndex = moves.length;
+        const subResult = this.parseVariation(tokens, i + 1);
+        subVariations.push({
+          startIndex: subStartIndex,
+          moves: subResult.moves,
+          subVariations: subResult.subVariations
+        });
+        i = subResult.endIndex;
+      } else if (tokens[i].type === 'close') {
+        depth--;
+        i++;
+      } else {
+        i++;
+      }
+    }
+    
+    return { moves, subVariations, endIndex: i };
+  }
+
+  private flattenVariations(
+    mainLine: string[], 
+    variations: Array<{ startIndex: number, moves: string[], subVariations: any[] }>, 
+    currentPath: string[], 
+    result: Variation[]
+  ): void {
+    // Add main line
+    if (currentPath.length === 0) {
+      result.push({
         id: 'main',
         name: 'Main Line',
-        moves: mainLineMoves,
+        moves: [...mainLine],
         mainline: true
       });
     }
     
-    // Extract all variations
-    const variationMoves = this.extractVariations(gameText);
-    variationMoves.forEach((moves, index) => {
-      if (moves.length > 0) {
-        variations.push({
-          id: `variation-${index + 1}`,
-          name: `Variation ${index + 1}`,
-          moves: moves,
-          mainline: false
-        });
+    // Process each variation
+    variations.forEach((variation, index) => {
+      const baseMoves = [...mainLine.slice(0, variation.startIndex), ...variation.moves];
+      const variationId = currentPath.length === 0 ? `variation-${index + 1}` : `${currentPath.join('-')}-${index + 1}`;
+      const variationName = currentPath.length === 0 ? `Variation ${index + 1}` : `Sub-variation ${index + 1}`;
+      
+      result.push({
+        id: variationId,
+        name: variationName,
+        moves: baseMoves,
+        mainline: false
+      });
+      
+      // Recursively process sub-variations
+      if (variation.subVariations.length > 0) {
+        this.flattenVariations(
+          baseMoves,
+          variation.subVariations,
+          [...currentPath, `variation-${index + 1}`],
+          result
+        );
       }
     });
-    
-    return variations;
   }
 
   private extractMainLine(gameText: string): string[] {
