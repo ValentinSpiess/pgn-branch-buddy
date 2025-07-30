@@ -28,6 +28,20 @@
 import { parse as parsePGN } from "@mliebelt/pgn-parser";
 import { Chess } from "chess.js";
 
+// add helper at top of file
+function getSan(m: any): string {
+  return (
+    // new parser shape (>=8.0)
+    m.notation?.san ||
+    m.notation?.notation ||
+    // older shape
+    m.move ||
+    m.san ||
+    // fallback for corner-cases
+    (typeof m === "string" ? m : "")
+  );
+}
+
 /** One node (position) in the game tree. */
 export interface Node {
   /** FEN of the position *before* the move is played. */
@@ -62,9 +76,9 @@ function buildTree(
   let currentParent = parent;
 
   for (const m of moves) {
-    // Extract the move notation - handle different possible structures
-    const moveNotation = m.notation?.notation || m.move || m.san || m;
-    if (!moveNotation || typeof moveNotation !== 'string') {
+    // Extract the move notation using the helper
+    const moveNotation = getSan(m);
+    if (!moveNotation) {
       console.warn('Skipping invalid move:', m);
       continue;
     }
