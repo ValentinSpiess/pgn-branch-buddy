@@ -30,17 +30,24 @@ export const TrainingMode = ({ variation, positions, userColor, onExit }: Traini
   useEffect(() => {
     if (!isTrainingMode) {
       // View mode - show moves from the beginning
-      chess.reset();
       let tempChess = new Chess();
       
+      // Apply moves sequentially from start position
       for (let i = 0; i < currentMoveIndex && i < variation.moves.length; i++) {
         try {
-          tempChess.move(variation.moves[i]);
+          const moveResult = tempChess.move(variation.moves[i]);
+          if (!moveResult) {
+            console.error(`Invalid move at index ${i}: ${variation.moves[i]}`);
+            break;
+          }
         } catch (error) {
-          console.error(`Invalid move: ${variation.moves[i]}`, error);
+          console.error(`Error applying move ${i}: ${variation.moves[i]}`, error);
           break;
         }
       }
+      
+      // Update the main chess instance and position
+      chess.load(tempChess.fen());
       setGamePosition(tempChess.fen());
     } else if (currentPosition) {
       // Training mode - load specific position
@@ -166,9 +173,9 @@ export const TrainingMode = ({ variation, positions, userColor, onExit }: Traini
           
           <ChessBoard
             position={gamePosition}
-            onMove={handleMove}
+            onMove={isTrainingMode ? handleMove : () => false}
             orientation={userColor}
-            allowMoves={isTrainingMode && !waitingForResponse}
+            allowMoves={!waitingForResponse}
           />
         </div>
 
