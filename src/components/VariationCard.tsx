@@ -13,6 +13,22 @@ interface VariationCardProps {
   };
 }
 
+const formatMovesWithNumbers = (moves: string[]): string => {
+  const formatted: string[] = [];
+  for (let i = 0; i < moves.length; i += 2) {
+    const moveNumber = Math.floor(i / 2) + 1;
+    const whiteMove = moves[i];
+    const blackMove = moves[i + 1];
+    
+    if (blackMove) {
+      formatted.push(`${moveNumber}. ${whiteMove} ${blackMove}`);
+    } else {
+      formatted.push(`${moveNumber}. ${whiteMove}`);
+    }
+  }
+  return formatted.join(' ');
+};
+
 export const VariationCard = ({ variation, onStartTraining, progress }: VariationCardProps) => {
   const progressPercentage = progress ? (progress.completed / progress.total) * 100 : 0;
 
@@ -49,7 +65,7 @@ export const VariationCard = ({ variation, onStartTraining, progress }: Variatio
             {variation.moves.length} moves
           </p>
           <div className="text-sm font-mono text-foreground/80 line-clamp-3">
-            {variation.moves.slice(0, 10).join(' ')}
+            {formatMovesWithNumbers(variation.moves.slice(0, 10))}
             {variation.moves.length > 10 && '...'}
           </div>
         </div>

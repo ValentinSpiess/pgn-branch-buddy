@@ -143,16 +143,16 @@ export class PGNParser {
         mainLine.push(tokens[i].value);
         i++;
       } else if (tokens[i].type === 'open') {
-        // Start of variation - determine branch point based on first move in variation
-        let branchPoint = mainLine.length;
+        // Start of variation - determine the correct branch point
+        let branchPoint = mainLine.length - 1; // Default to before the last move
         
         // Look at the first move in the variation to determine the correct branch point
         if (i + 1 < tokens.length && tokens[i + 1].type === 'move') {
           const firstVariationMove = tokens[i + 1];
           if (firstVariationMove.moveNumber !== undefined) {
-            // Calculate the correct branch point based on move number
+            // Calculate the correct branch point based on move number and color
             const targetMoveIndex = (firstVariationMove.moveNumber - 1) * 2 + (firstVariationMove.isBlackMove ? 1 : 0);
-            branchPoint = targetMoveIndex;
+            branchPoint = Math.min(targetMoveIndex, mainLine.length);
           }
         }
         
@@ -254,9 +254,25 @@ export class PGNParser {
   private generateVariationName(moves: string[], index: number): string {
     if (moves.length === 0) return `Variation ${index}`;
     
-    // Use first few moves to create descriptive name
-    const firstMoves = moves.slice(0, 3).join(' ');
-    return `${index}. ${firstMoves}${moves.length > 3 ? '...' : ''}`;
+    // Format first few moves with proper chess notation
+    const formattedMoves = this.formatMovesWithNumbers(moves.slice(0, 6));
+    return `${index}. ${formattedMoves}${moves.length > 6 ? '...' : ''}`;
+  }
+
+  private formatMovesWithNumbers(moves: string[]): string {
+    const formatted: string[] = [];
+    for (let i = 0; i < moves.length; i += 2) {
+      const moveNumber = Math.floor(i / 2) + 1;
+      const whiteMove = moves[i];
+      const blackMove = moves[i + 1];
+      
+      if (blackMove) {
+        formatted.push(`${moveNumber}. ${whiteMove} ${blackMove}`);
+      } else {
+        formatted.push(`${moveNumber}. ${whiteMove}`);
+      }
+    }
+    return formatted.join(' ');
   }
 
   private extractMainLine(gameText: string): string[] {
