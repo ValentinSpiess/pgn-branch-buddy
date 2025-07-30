@@ -17,4 +17,8 @@ describe("parsePgnService", () => {
   it("throws on illegal moves", () => {
     expect(() => parseGame("1.e4 e5 2.Qh5 Qxe4")).toThrow("Illegal SAN detected");
   });
+
+  it("parses a game that ends in 1-0", () => {
+    expect(() => parseGame("1.e4 e5 1-0")).not.toThrow();
+  });
 });

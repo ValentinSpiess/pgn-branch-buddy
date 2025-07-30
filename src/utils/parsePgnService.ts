@@ -28,17 +28,15 @@
 import { parse as parsePGN } from "@mliebelt/pgn-parser";
 import { Chess } from "chess.js";
 
-// helper ─ put near the top, after imports
+// ——— normalise every possible token shape to SAN ———
 function sanFrom(token: any): string | undefined {
   if (!token) return;
-  if (typeof token === "string") return token;                // older parser
+  if (typeof token === "string") return token;          // legacy
   if (token.notation) {
-    // @mliebelt/pgn-parser ≥8.0 shape
-    if (typeof token.notation === "string") return token.notation;
-    if (token.notation.san)        return token.notation.san;
-    if (token.notation.notation)   return token.notation.notation;
+    if (typeof token.notation === "string") return token.notation;      // ≥8.0
+    if (token.notation.san)      return token.notation.san;
+    if (token.notation.notation) return token.notation.notation;
   }
-  // legacy shapes
   return token.san || token.move;
 }
 
@@ -65,6 +63,8 @@ export function parseGame(pgn: string): Node {
   const chess = new Chess();
   const root: Node = { fen: chess.fen(), move: "", children: [] };
 
+  if (import.meta.env.DEV) console.table((games[0] as any).moves.slice(0, 8));
+
   buildTree((games[0] as any).moves, chess, root);
   return root;
 }
@@ -78,10 +78,9 @@ function buildTree(
   let currentParent = parent;
 
   for (const m of moves) {
-    // in buildTree loop -- replace current code that uses m.move
     const san = sanFrom(m);
     if (!san || GAME_RESULTS.includes(san)) {
-      // skip result tokens, comments, or empty strings
+      // skip result tokens, comments, etc.
       continue;
     }
 
