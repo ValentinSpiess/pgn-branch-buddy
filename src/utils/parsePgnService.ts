@@ -28,19 +28,21 @@
 import { parse as parsePGN } from "@mliebelt/pgn-parser";
 import { Chess } from "chess.js";
 
-// add helper at top of file
-function getSan(m: any): string {
-  return (
-    // new parser shape (>=8.0)
-    m.notation?.san ||
-    m.notation?.notation ||
-    // older shape
-    m.move ||
-    m.san ||
-    // fallback for corner-cases
-    (typeof m === "string" ? m : "")
-  );
+// helper ─ put near the top, after imports
+function sanFrom(token: any): string | undefined {
+  if (!token) return;
+  if (typeof token === "string") return token;                // older parser
+  if (token.notation) {
+    // @mliebelt/pgn-parser ≥8.0 shape
+    if (typeof token.notation === "string") return token.notation;
+    if (token.notation.san)        return token.notation.san;
+    if (token.notation.notation)   return token.notation.notation;
+  }
+  // legacy shapes
+  return token.san || token.move;
 }
+
+const GAME_RESULTS = ["1-0", "0-1", "1/2-1/2", "*"];
 
 /** One node (position) in the game tree. */
 export interface Node {
@@ -76,15 +78,17 @@ function buildTree(
   let currentParent = parent;
 
   for (const m of moves) {
-    // 1️⃣ Advance a *copy* of the current board so sibling branches stay isolated.
-    const nextBoard = new Chess(board.fen());
-    const san = getSan(m);
-    if (!san) throw new Error("Move token missing SAN");
+    // in buildTree loop -- replace current code that uses m.move
+    const san = sanFrom(m);
+    if (!san || GAME_RESULTS.includes(san)) {
+      // skip result tokens, comments, or empty strings
+      continue;
+    }
 
+    const nextBoard = new Chess(board.fen());
     const legal = nextBoard.move(san, { strict: true });
     if (!legal) throw new Error(`Illegal SAN detected: ${san}`);
 
-    // 2️⃣ Create the node for this move.
     const node: Node = { fen: board.fen(), move: san, children: [] };
     currentParent.children.push(node);
 
