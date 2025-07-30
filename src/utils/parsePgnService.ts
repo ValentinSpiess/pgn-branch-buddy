@@ -59,19 +59,9 @@ function cleanPgn(raw: string): string {
   // 1. strip all well-formed { … } comments and NAGs
   out = out.replace(/\{[^}]*\}/gms, "").replace(/\$\d+/g, "");
 
-  // 2. if a lone "{" remains with no matching "}", delete ONLY that comment,
-  //    not the moves after it.
-  while (true) {
-    const open = out.indexOf("{");
-    if (open === -1) break;
-    const close = out.indexOf("}", open + 1);
-    if (close === -1) {
-      // no closing brace → drop just this open-brace chunk
-      out = out.slice(0, open) + " " + out.slice(open + 1);
-    } else {
-      break; // all remaining { … } are balanced
-    }
-  }
+  // 2 · handle unmatched "{"
+  out = out.replace(/\{[^}]*?(?:\d+\.(?:\.\.)?)/gms, (_, m) => m); // keep the move number
+  out = out.replace(/\{[^}]*$/gms, "");                            // comment that runs to EOF
 
   // 3. collapse any 4-plus dot sequences like "5....." → "5..."
   out = out.replace(/\.{4,}/g, "...");
