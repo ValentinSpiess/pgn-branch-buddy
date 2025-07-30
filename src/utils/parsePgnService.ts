@@ -60,7 +60,8 @@ function cleanPgn(raw: string): string {
   out = out.replace(/\{[^}]*\}/gms, "").replace(/\$\d+/g, "");
 
   // 2 · handle unmatched "{"
-  out = out.replace(/\{[^}]*?(?:\d+\.(?:\.\.)?)/gms, (_, m) => m); // keep the move number
+  // keep the move-number token that follows the bad comment
+  out = out.replace(/\{[^}]*?(\d+\.(?:\.\.)?)/gms, "$1");
   out = out.replace(/\{[^}]*$/gms, "");                            // comment that runs to EOF
 
   // 3. collapse any 4-plus dot sequences like "5....." → "5..."
