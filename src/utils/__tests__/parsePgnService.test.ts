@@ -21,4 +21,10 @@ describe("parsePgnService", () => {
   it("parses a game that ends in 1-0", () => {
     expect(() => parseGame("1.e4 e5 1-0")).not.toThrow();
   });
+
+  it("parses a study PGN full of comments and NAGs", () => {
+    const messy =
+      "1.e4 e6 { huge comment (with (parentheses)) $6 $15 } 1... c5 2.d4 d5 *";
+    expect(() => parseGame(messy)).not.toThrow();
+  });
 });

@@ -52,12 +52,29 @@ export interface Node {
   children: Node[];
 }
 
+// Strip ALL comments `{ … }` (even if they contain nested braces or are
+// missing the closing brace) and Numeric-Annotation-Glyphs like "$13".
+function cleanPgn(raw: string): string {
+  // 1. Remove well-formed { … } blocks
+  let out = raw.replace(/\{[^}]*\}/gms, "");
+  // 2. If a lone "{" remains with no matching "}", drop everything after it
+  const openBrace = out.lastIndexOf("{");
+  const closeBrace = out.lastIndexOf("}");
+  if (openBrace > closeBrace) out = out.slice(0, openBrace);
+
+  // 3. Remove NAGs ($13, $3, …)
+  out = out.replace(/\$\d+/g, "");
+
+  return out.trim();
+}
+
 /**
  * Parse the **first** game found in a PGN string and return a full
  * move-/variation-tree. Throws if the PGN is empty or contains illegal SAN.
  */
 export function parseGame(pgn: string): Node {
-  const games = parsePGN(pgn, { startRule: "games" });
+  const sanitized = cleanPgn(pgn);
+  const games = parsePGN(sanitized, { startRule: "games" });
   if (!Array.isArray(games) || !games.length) throw new Error("No game found in PGN string.");
 
   const chess = new Chess();
