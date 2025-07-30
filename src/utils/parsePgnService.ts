@@ -119,9 +119,22 @@ function buildTree(
       continue;
     }
 
+    // Debug logging to see what's happening
+    if (import.meta.env.DEV) {
+      console.log("Processing move:", { token: m, san, currentFen: board.fen() });
+    }
+
     const nextBoard = new Chess(board.fen());
     const legal = nextBoard.move(san, { strict: true });
-    if (!legal) throw new Error(`Illegal SAN detected: ${san}`);
+    if (!legal) {
+      console.error("Failed move details:", { 
+        san, 
+        currentFen: board.fen(), 
+        rawToken: m,
+        legalMoves: board.moves()
+      });
+      throw new Error(`Illegal SAN detected: ${san}`);
+    }
 
     const node: Node = { fen: board.fen(), move: san, children: [] };
     currentParent.children.push(node);
