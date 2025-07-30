@@ -127,15 +127,16 @@ export class PGNParser {
         mainLine.push(tokens[i].value);
         i++;
       } else if (tokens[i].type === 'open') {
-        // Start of variation
-        const startIndex = mainLine.length;
+        // Start of variation - it branches from current position in main line
+        const branchPoint = mainLine.length;
         const variationResult = this.parseVariation(tokens, i + 1);
         variations.push({
-          startIndex,
+          startIndex: branchPoint,
           moves: variationResult.moves,
           subVariations: variationResult.subVariations
         });
         i = variationResult.endIndex;
+        // After variation closes, continue with main line
       } else {
         i++;
       }
@@ -155,15 +156,17 @@ export class PGNParser {
         moves.push(tokens[i].value);
         i++;
       } else if (tokens[i].type === 'open') {
+        // Sub-variation within this variation
+        const subBranchPoint = moves.length;
         depth++;
-        const subStartIndex = moves.length;
         const subResult = this.parseVariation(tokens, i + 1);
         subVariations.push({
-          startIndex: subStartIndex,
+          startIndex: subBranchPoint,
           moves: subResult.moves,
           subVariations: subResult.subVariations
         });
         i = subResult.endIndex;
+        depth--;
       } else if (tokens[i].type === 'close') {
         depth--;
         i++;
@@ -176,44 +179,57 @@ export class PGNParser {
   }
 
   private flattenVariations(
-    mainLine: string[], 
+    parentMoves: string[], 
     variations: Array<{ startIndex: number, moves: string[], subVariations: any[] }>, 
     currentPath: string[], 
     result: Variation[]
   ): void {
-    // Add main line
+    // Add main line only at top level
     if (currentPath.length === 0) {
       result.push({
         id: 'main',
         name: 'Main Line',
-        moves: [...mainLine],
+        moves: [...parentMoves],
         mainline: true
       });
     }
     
     // Process each variation
     variations.forEach((variation, index) => {
-      const baseMoves = [...mainLine.slice(0, variation.startIndex), ...variation.moves];
+      // Build complete variation: parent moves up to branch point + variation moves
+      const completeMoves = [
+        ...parentMoves.slice(0, variation.startIndex),
+        ...variation.moves
+      ];
+      
       const variationId = currentPath.length === 0 ? `variation-${index + 1}` : `${currentPath.join('-')}-${index + 1}`;
-      const variationName = currentPath.length === 0 ? `Variation ${index + 1}` : `Sub-variation ${index + 1}`;
+      const variationName = this.generateVariationName(variation.moves, index + 1);
       
       result.push({
         id: variationId,
         name: variationName,
-        moves: baseMoves,
+        moves: completeMoves,
         mainline: false
       });
       
       // Recursively process sub-variations
       if (variation.subVariations.length > 0) {
         this.flattenVariations(
-          baseMoves,
+          completeMoves,
           variation.subVariations,
           [...currentPath, `variation-${index + 1}`],
           result
         );
       }
     });
+  }
+
+  private generateVariationName(moves: string[], index: number): string {
+    if (moves.length === 0) return `Variation ${index}`;
+    
+    // Use first few moves to create descriptive name
+    const firstMoves = moves.slice(0, 3).join(' ');
+    return `${index}. ${firstMoves}${moves.length > 3 ? '...' : ''}`;
   }
 
   private extractMainLine(gameText: string): string[] {

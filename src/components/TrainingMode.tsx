@@ -173,9 +173,22 @@ export const TrainingMode = ({ variation, positions, userColor, onExit }: Traini
           
           <ChessBoard
             position={gamePosition}
-            onMove={isTrainingMode ? handleMove : () => false}
+            onMove={isTrainingMode ? handleMove : (move) => {
+              // In view mode, allow moves for exploration
+              try {
+                const newChess = new Chess(gamePosition);
+                const result = newChess.move(move);
+                if (result) {
+                  setGamePosition(newChess.fen());
+                  return true;
+                }
+                return false;
+              } catch {
+                return false;
+              }
+            }}
             orientation={userColor}
-            allowMoves={!waitingForResponse}
+            allowMoves={true}
           />
         </div>
 
