@@ -2,7 +2,8 @@ import { useState } from "react";
 import { PGNUploader } from "@/components/PGNUploader";
 import { VariationCard } from "@/components/VariationCard";
 import { TrainingMode } from "@/components/TrainingMode";
-import { PGNParser, Variation, TrainingPosition } from "@/utils/pgnParser";
+import { parseGame } from "@/utils/parsePgnService";
+import { extractVariationsFromTree, createTrainingPositions, Variation, TrainingPosition } from "@/utils/treeToVariations";
 
 type AppMode = 'upload' | 'variations' | 'training';
 
@@ -16,20 +17,24 @@ const Index = () => {
     userColor: 'white' | 'black';
   } | null>(null);
 
-  const pgnParser = new PGNParser();
-
   const handlePGNLoaded = (pgn: string, name?: string) => {
-    const parsedVariations = pgnParser.parsePGN(pgn);
-    setVariations(parsedVariations);
-    setDeckName(name || 'Untitled Deck');
-    setMode('variations');
+    try {
+      const root = parseGame(pgn);
+      const parsedVariations = extractVariationsFromTree(root);
+      setVariations(parsedVariations);
+      setDeckName(name || 'Untitled Deck');
+      setMode('variations');
+    } catch (error) {
+      console.error("Error parsing PGN:", error);
+      // Handle error - maybe show a toast or stay in upload mode
+    }
   };
 
   const handleStartTraining = (variationId: string, userColor: 'white' | 'black') => {
     const variation = variations.find(v => v.id === variationId);
     if (!variation) return;
 
-    const positions = pgnParser.createTrainingPositions(variation, userColor);
+    const positions = createTrainingPositions(variation, userColor);
     setCurrentTraining({ variation, positions, userColor });
     setMode('training');
   };
