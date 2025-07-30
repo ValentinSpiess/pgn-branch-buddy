@@ -89,8 +89,8 @@ export class PGNParser {
     return result;
   }
 
-  private tokenizePGN(text: string): Array<{ type: 'move' | 'open' | 'close', value: string, position: number }> {
-    const tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number }> = [];
+  private tokenizePGN(text: string): Array<{ type: 'move' | 'open' | 'close', value: string, position: number, moveNumber?: number, isBlackMove?: boolean }> {
+    const tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number, moveNumber?: number, isBlackMove?: boolean }> = [];
     let i = 0;
     
     while (i < text.length) {
@@ -103,13 +103,29 @@ export class PGNParser {
       } else if (text[i] === ' ') {
         i++;
       } else {
-        // Parse move
-        const moveMatch = text.slice(i).match(/^(\d+\.{1,3}\s*)?((?:O-O-O|O-O|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?))/);
+        // Parse move with move number
+        const moveMatch = text.slice(i).match(/^(\d+)(\.{1,3})\s*((?:O-O-O|O-O|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?))/);
         if (moveMatch) {
-          tokens.push({ type: 'move', value: moveMatch[2], position: i });
+          const moveNumber = parseInt(moveMatch[1]);
+          const dots = moveMatch[2];
+          const isBlackMove = dots === '...';
+          tokens.push({ 
+            type: 'move', 
+            value: moveMatch[3], 
+            position: i,
+            moveNumber,
+            isBlackMove
+          });
           i += moveMatch[0].length;
         } else {
-          i++;
+          // Try to parse move without number (continuation)
+          const simpleMoveMatch = text.slice(i).match(/^((?:O-O-O|O-O|[NBRQK]?[a-h]?[1-8]?x?[a-h][1-8](?:=[NBRQK])?[+#]?))/);
+          if (simpleMoveMatch) {
+            tokens.push({ type: 'move', value: simpleMoveMatch[1], position: i });
+            i += simpleMoveMatch[0].length;
+          } else {
+            i++;
+          }
         }
       }
     }
@@ -117,7 +133,7 @@ export class PGNParser {
     return tokens;
   }
 
-  private parseTokens(tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number }>): { mainLine: string[], variations: Array<{ startIndex: number, moves: string[], subVariations: any[] }> } {
+  private parseTokens(tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number, moveNumber?: number, isBlackMove?: boolean }>): { mainLine: string[], variations: Array<{ startIndex: number, moves: string[], subVariations: any[] }> } {
     const mainLine: string[] = [];
     const variations: Array<{ startIndex: number, moves: string[], subVariations: any[] }> = [];
     let i = 0;
@@ -127,9 +143,20 @@ export class PGNParser {
         mainLine.push(tokens[i].value);
         i++;
       } else if (tokens[i].type === 'open') {
-        // Start of variation - it branches from current position in main line
-        const branchPoint = mainLine.length;
-        const variationResult = this.parseVariation(tokens, i + 1);
+        // Start of variation - determine branch point based on first move in variation
+        let branchPoint = mainLine.length;
+        
+        // Look at the first move in the variation to determine the correct branch point
+        if (i + 1 < tokens.length && tokens[i + 1].type === 'move') {
+          const firstVariationMove = tokens[i + 1];
+          if (firstVariationMove.moveNumber !== undefined) {
+            // Calculate the correct branch point based on move number
+            const targetMoveIndex = (firstVariationMove.moveNumber - 1) * 2 + (firstVariationMove.isBlackMove ? 1 : 0);
+            branchPoint = targetMoveIndex;
+          }
+        }
+        
+        const variationResult = this.parseVariation(tokens, i + 1, branchPoint);
         variations.push({
           startIndex: branchPoint,
           moves: variationResult.moves,
@@ -145,7 +172,7 @@ export class PGNParser {
     return { mainLine, variations };
   }
 
-  private parseVariation(tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number }>, startIndex: number): { moves: string[], subVariations: any[], endIndex: number } {
+  private parseVariation(tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number, moveNumber?: number, isBlackMove?: boolean }>, startIndex: number, branchPoint?: number): { moves: string[], subVariations: any[], endIndex: number } {
     const moves: string[] = [];
     const subVariations: any[] = [];
     let i = startIndex;
@@ -159,7 +186,7 @@ export class PGNParser {
         // Sub-variation within this variation
         const subBranchPoint = moves.length;
         depth++;
-        const subResult = this.parseVariation(tokens, i + 1);
+        const subResult = this.parseVariation(tokens, i + 1, subBranchPoint);
         subVariations.push({
           startIndex: subBranchPoint,
           moves: subResult.moves,
