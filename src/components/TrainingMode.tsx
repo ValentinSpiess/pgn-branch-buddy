@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TrainingPosition, Variation } from "@/utils/pgnParser";
-import { ArrowLeft, RotateCcw, CheckCircle, XCircle } from "lucide-react";
+import { ArrowLeft, RotateCcw, CheckCircle, XCircle, ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { toast } from "sonner";
 
 interface TrainingModeProps {
@@ -17,22 +17,39 @@ interface TrainingModeProps {
 }
 
 export const TrainingMode = ({ variation, positions, userColor, onExit }: TrainingModeProps) => {
-  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
+  const [currentMoveIndex, setCurrentMoveIndex] = useState(0);
   const [chess] = useState(new Chess());
   const [gamePosition, setGamePosition] = useState('');
+  const [isTrainingMode, setIsTrainingMode] = useState(false);
   const [waitingForResponse, setWaitingForResponse] = useState(false);
   const [moveStatus, setMoveStatus] = useState<'correct' | 'incorrect' | null>(null);
+  const [currentPositionIndex, setCurrentPositionIndex] = useState(0);
 
   const currentPosition = positions[currentPositionIndex];
 
   useEffect(() => {
-    if (currentPosition) {
+    if (!isTrainingMode) {
+      // View mode - show moves from the beginning
+      chess.reset();
+      let tempChess = new Chess();
+      
+      for (let i = 0; i < currentMoveIndex && i < variation.moves.length; i++) {
+        try {
+          tempChess.move(variation.moves[i]);
+        } catch (error) {
+          console.error(`Invalid move: ${variation.moves[i]}`, error);
+          break;
+        }
+      }
+      setGamePosition(tempChess.fen());
+    } else if (currentPosition) {
+      // Training mode - load specific position
       chess.load(currentPosition.fen);
       setGamePosition(currentPosition.fen);
       setWaitingForResponse(false);
       setMoveStatus(null);
     }
-  }, [currentPosition, chess]);
+  }, [currentMoveIndex, isTrainingMode, currentPosition, chess, variation.moves]);
 
   const handleMove = (sourceSquare: string, targetSquare: string): boolean => {
     if (waitingForResponse || !currentPosition) return false;
@@ -105,7 +122,32 @@ export const TrainingMode = ({ variation, positions, userColor, onExit }: Traini
     }
   };
 
-  const progressPercentage = ((currentPositionIndex + 1) / positions.length) * 100;
+  const goToPreviousMove = () => {
+    if (currentMoveIndex > 0) {
+      setCurrentMoveIndex(prev => prev - 1);
+    }
+  };
+
+  const goToNextMove = () => {
+    if (currentMoveIndex < variation.moves.length) {
+      setCurrentMoveIndex(prev => prev + 1);
+    }
+  };
+
+  const startTraining = () => {
+    setIsTrainingMode(true);
+    setCurrentPositionIndex(0);
+  };
+
+  const exitTraining = () => {
+    setIsTrainingMode(false);
+    setCurrentMoveIndex(0);
+    setMoveStatus(null);
+  };
+
+  const progressPercentage = isTrainingMode 
+    ? ((currentPositionIndex + 1) / positions.length) * 100 
+    : (currentMoveIndex / variation.moves.length) * 100;
 
   return (
     <div className="container mx-auto p-6 max-w-6xl">
@@ -126,7 +168,7 @@ export const TrainingMode = ({ variation, positions, userColor, onExit }: Traini
             position={gamePosition}
             onMove={handleMove}
             orientation={userColor}
-            allowMoves={!waitingForResponse}
+            allowMoves={isTrainingMode && !waitingForResponse}
           />
         </div>
 
@@ -139,13 +181,75 @@ export const TrainingMode = ({ variation, positions, userColor, onExit }: Traini
             <CardContent className="space-y-4">
               <div>
                 <div className="flex justify-between text-sm text-muted-foreground mb-2">
-                  <span>Progress</span>
-                  <span>{currentPositionIndex + 1}/{positions.length}</span>
+                  <span>{isTrainingMode ? 'Training Progress' : 'Moves'}</span>
+                  <span>
+                    {isTrainingMode 
+                      ? `${currentPositionIndex + 1}/${positions.length}` 
+                      : `${currentMoveIndex}/${variation.moves.length}`
+                    }
+                  </span>
                 </div>
                 <Progress value={progressPercentage} className="w-full" />
               </div>
 
-              {currentPosition && (
+              {!isTrainingMode && (
+                <div className="space-y-3">
+                  <div className="text-sm text-muted-foreground">
+                    <strong>All moves:</strong> {variation.moves.join(' ')}
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={goToPreviousMove}
+                      disabled={currentMoveIndex === 0}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={goToNextMove}
+                      disabled={currentMoveIndex >= variation.moves.length}
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                    
+                    <Button 
+                      variant="default" 
+                      size="sm" 
+                      onClick={startTraining}
+                      className="ml-auto"
+                    >
+                      <Play className="w-4 h-4 mr-2" />
+                      Start Training
+                    </Button>
+                  </div>
+                  
+                  {currentMoveIndex > 0 && currentMoveIndex <= variation.moves.length && (
+                    <div className="text-sm">
+                      <strong>Current move:</strong> {variation.moves[currentMoveIndex - 1]}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {isTrainingMode && (
+                <div className="space-y-3">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={exitTraining}
+                    className="w-full"
+                  >
+                    Exit Training Mode
+                  </Button>
+                </div>
+              )}
+
+              {isTrainingMode && currentPosition && (
                 <div className="space-y-3">
                   <div>
                     <h4 className="text-sm font-medium mb-1">Current Position</h4>
