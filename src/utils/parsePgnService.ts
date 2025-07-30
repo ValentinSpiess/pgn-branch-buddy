@@ -119,13 +119,11 @@ function buildTree(
     const nextBoard = new Chess(board.fen());
     const legal = nextBoard.move(san, { strict: true });
     if (!legal) {
-      console.error("Failed move details:", { 
-        san, 
-        currentFen: board.fen(), 
-        rawToken: m,
-        legalMoves: board.moves()
-      });
-      throw new Error(`Illegal SAN detected: ${san}`);
+      console.warn(
+        "⚠️  Skipping illegal SAN →", san,
+        "in FEN:", board.fen()
+      );
+      continue;              // ignore the bad token, carry on
     }
 
     const node: Node = { fen: board.fen(), move: san, children: [] };
