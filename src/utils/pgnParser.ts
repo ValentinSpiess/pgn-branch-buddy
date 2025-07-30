@@ -143,27 +143,36 @@ export class PGNParser {
         mainLine.push(tokens[i].value);
         i++;
       } else if (tokens[i].type === 'open') {
-        // Start of variation - determine the correct branch point
-        let branchPoint = mainLine.length - 1; // Default to before the last move
+        // Start of variation - find the correct branch point
+        let branchPoint = mainLine.length; // Default to current end of main line
         
         // Look at the first move in the variation to determine the correct branch point
         if (i + 1 < tokens.length && tokens[i + 1].type === 'move') {
           const firstVariationMove = tokens[i + 1];
           if (firstVariationMove.moveNumber !== undefined) {
             // Calculate the correct branch point based on move number and color
-            const targetMoveIndex = (firstVariationMove.moveNumber - 1) * 2 + (firstVariationMove.isBlackMove ? 1 : 0);
+            // For example: if variation starts with "5...e5", it branches from after white's 5th move
+            let targetMoveIndex;
+            if (firstVariationMove.isBlackMove) {
+              // Black move - branch from after white's move of same number
+              targetMoveIndex = (firstVariationMove.moveNumber - 1) * 2 + 1;
+            } else {
+              // White move - branch from after black's move of previous number
+              targetMoveIndex = (firstVariationMove.moveNumber - 1) * 2;
+            }
+            
+            // Ensure we don't go beyond what we've seen in the main line
             branchPoint = Math.min(targetMoveIndex, mainLine.length);
           }
         }
         
-        const variationResult = this.parseVariation(tokens, i + 1, branchPoint);
+        const variationResult = this.parseVariation(tokens, i + 1);
         variations.push({
           startIndex: branchPoint,
           moves: variationResult.moves,
           subVariations: variationResult.subVariations
         });
         i = variationResult.endIndex;
-        // After variation closes, continue with main line
       } else {
         i++;
       }
@@ -172,7 +181,7 @@ export class PGNParser {
     return { mainLine, variations };
   }
 
-  private parseVariation(tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number, moveNumber?: number, isBlackMove?: boolean }>, startIndex: number, branchPoint?: number): { moves: string[], subVariations: any[], endIndex: number } {
+  private parseVariation(tokens: Array<{ type: 'move' | 'open' | 'close', value: string, position: number, moveNumber?: number, isBlackMove?: boolean }>, startIndex: number): { moves: string[], subVariations: any[], endIndex: number } {
     const moves: string[] = [];
     const subVariations: any[] = [];
     let i = startIndex;
@@ -183,10 +192,26 @@ export class PGNParser {
         moves.push(tokens[i].value);
         i++;
       } else if (tokens[i].type === 'open') {
-        // Sub-variation within this variation
-        const subBranchPoint = moves.length;
+        // Sub-variation within this variation - calculate correct branch point
+        let subBranchPoint = moves.length;
+        
+        // Look at the first move in the sub-variation
+        if (i + 1 < tokens.length && tokens[i + 1].type === 'move') {
+          const firstSubMove = tokens[i + 1];
+          if (firstSubMove.moveNumber !== undefined) {
+            // Calculate relative branch point within this variation
+            const currentStartMoveNumber = Math.floor(moves.length / 2) + 1;
+            const targetRelativeIndex = (firstSubMove.moveNumber - currentStartMoveNumber) * 2;
+            if (firstSubMove.isBlackMove) {
+              subBranchPoint = Math.min(targetRelativeIndex + 1, moves.length);
+            } else {
+              subBranchPoint = Math.min(targetRelativeIndex, moves.length);
+            }
+          }
+        }
+        
         depth++;
-        const subResult = this.parseVariation(tokens, i + 1, subBranchPoint);
+        const subResult = this.parseVariation(tokens, i + 1);
         subVariations.push({
           startIndex: subBranchPoint,
           moves: subResult.moves,
@@ -223,40 +248,96 @@ export class PGNParser {
     
     // Process each variation
     variations.forEach((variation, index) => {
+      // Ensure branch point doesn't exceed parent moves length
+      const safeBranchPoint = Math.min(variation.startIndex, parentMoves.length);
+      
       // Build complete variation: parent moves up to branch point + variation moves
       const completeMoves = [
-        ...parentMoves.slice(0, variation.startIndex),
+        ...parentMoves.slice(0, safeBranchPoint),
         ...variation.moves
       ];
       
-      const variationId = currentPath.length === 0 ? `variation-${index + 1}` : `${currentPath.join('-')}-${index + 1}`;
-      const variationName = this.generateVariationName(variation.moves, index + 1);
-      
-      result.push({
-        id: variationId,
-        name: variationName,
-        moves: completeMoves,
-        mainline: false
-      });
-      
-      // Recursively process sub-variations
-      if (variation.subVariations.length > 0) {
-        this.flattenVariations(
-          completeMoves,
-          variation.subVariations,
-          [...currentPath, `variation-${index + 1}`],
-          result
-        );
+      // Validate the variation by checking if all moves are legal
+      if (this.validateVariation(completeMoves)) {
+        const variationId = currentPath.length === 0 ? `variation-${index + 1}` : `${currentPath.join('-')}-${index + 1}`;
+        const variationName = this.generateVariationName(completeMoves, safeBranchPoint, index + 1);
+        
+        result.push({
+          id: variationId,
+          name: variationName,
+          moves: completeMoves,
+          mainline: false
+        });
+        
+        // Recursively process sub-variations
+        if (variation.subVariations.length > 0) {
+          this.flattenVariations(
+            completeMoves,
+            variation.subVariations,
+            [...currentPath, `variation-${index + 1}`],
+            result
+          );
+        }
       }
     });
   }
 
-  private generateVariationName(moves: string[], index: number): string {
+  private validateVariation(moves: string[]): boolean {
+    try {
+      const testChess = new Chess();
+      for (const move of moves) {
+        const result = testChess.move(move);
+        if (!result) {
+          return false;
+        }
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private generateVariationName(moves: string[], branchPoint: number, index: number): string {
     if (moves.length === 0) return `Variation ${index}`;
     
-    // Format first few moves with proper chess notation
-    const formattedMoves = this.formatMovesWithNumbers(moves.slice(0, 6));
-    return `${index}. ${formattedMoves}${moves.length > 6 ? '...' : ''}`;
+    // Find the first different move (where variation branches off)
+    const startMoveNumber = Math.floor(branchPoint / 2) + 1;
+    const branchMoveIndex = branchPoint;
+    
+    if (branchMoveIndex < moves.length) {
+      const branchMove = moves[branchMoveIndex];
+      const isBlackMove = branchPoint % 2 === 1;
+      const moveNumberDisplay = isBlackMove ? `${startMoveNumber}...` : `${startMoveNumber}.`;
+      
+      // Show the first few moves starting from the branch point
+      const branchMoves = moves.slice(branchMoveIndex, Math.min(branchMoveIndex + 4, moves.length));
+      const formattedBranchMoves = this.formatMovesFromIndex(branchMoves, startMoveNumber, isBlackMove);
+      
+      return `${index}. ${moveNumberDisplay} ${formattedBranchMoves}${moves.length > branchMoveIndex + 4 ? '...' : ''}`;
+    }
+    
+    return `Variation ${index}`;
+  }
+
+  private formatMovesFromIndex(moves: string[], startMoveNumber: number, startsWithBlack: boolean): string {
+    const formatted: string[] = [];
+    let currentMoveNumber = startMoveNumber;
+    let isBlackMove = startsWithBlack;
+    
+    for (let i = 0; i < moves.length; i++) {
+      if (!isBlackMove) {
+        // White move
+        formatted.push(`${currentMoveNumber}. ${moves[i]}`);
+        isBlackMove = true;
+      } else {
+        // Black move
+        formatted.push(moves[i]);
+        isBlackMove = false;
+        currentMoveNumber++;
+      }
+    }
+    
+    return formatted.join(' ');
   }
 
   private formatMovesWithNumbers(moves: string[]): string {
