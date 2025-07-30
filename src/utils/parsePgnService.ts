@@ -56,27 +56,28 @@ export interface Node {
 function cleanPgn(raw: string): string {
   let out = raw;
 
-  // 1 · strip { … } comments (incl. arrow tags [%cal …]) and NAGs $nn
+  // 1. strip all well-formed { … } comments and NAGs
   out = out.replace(/\{[^}]*\}/gms, "").replace(/\$\d+/g, "");
 
-  // 2 · remove chess.com/lichess arrow annotations [%cal …] and [%csl …]
-  out = out.replace(/\[%cal [^\]]*\]/g, "").replace(/\[%csl [^\]]*\]/g, "");
+  // 2. if a lone "{" remains with no matching "}", delete ONLY that comment,
+  //    not the moves after it.
+  while (true) {
+    const open = out.indexOf("{");
+    if (open === -1) break;
+    const close = out.indexOf("}", open + 1);
+    if (close === -1) {
+      // no closing brace → drop just this open-brace chunk
+      out = out.slice(0, open) + " " + out.slice(open + 1);
+    } else {
+      break; // all remaining { … } are balanced
+    }
+  }
 
-  // 3 · remove any other square bracket annotations [%xxx ...]
-  out = out.replace(/\[%[^\]]*\]/g, "");
+  // 3. collapse any 4-plus dot sequences like "5....." → "5..."
+  out = out.replace(/\.{4,}/g, "...");
 
-  // 4 · collapse crazy "5....." → "5..."  (two or more dots → exactly three)
-  out = out.replace(/\.{4,}/g, "...");   
-
-  // 5 · remove accidental double-spaces
-  out = out.replace(/\s{2,}/g, " ");
-
-  // 6 · drop an unterminated { …  at the tail *without* deleting moves after it
-  const open = out.lastIndexOf("{");
-  const close = out.lastIndexOf("}");
-  if (open > close) out = out.slice(0, open);
-
-  return out.trim();
+  // 4. shrink double spaces
+  return out.replace(/\s{2,}/g, " ").trim();
 }
 
 /**

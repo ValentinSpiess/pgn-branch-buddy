@@ -32,4 +32,10 @@ describe("parsePgnService", () => {
     const weird = "1.e4 e6 2.d4 d5 3.Nd2 c5 4.Ngf3 cxd4 5.....Nb5 *";
     expect(() => parseGame(weird)).not.toThrow();
   });
+
+  it("keeps moves after an unterminated comment", () => {
+    const txt = "1.e4 {broken comment 1... e5 2.Nf3 *";
+    const root = parseGame(txt);           // should NOT throw
+    expect(root.children[0].move).toBe("e4");
+  });
 });
