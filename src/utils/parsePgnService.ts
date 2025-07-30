@@ -52,18 +52,23 @@ export interface Node {
   children: Node[];
 }
 
-// Strip ALL comments `{ … }` (even if they contain nested braces or are
-// missing the closing brace) and Numeric-Annotation-Glyphs like "$13".
+// Cleans a raw PGN so @mliebelt/pgn-parser can digest it.
 function cleanPgn(raw: string): string {
-  // 1. Remove well-formed { … } blocks
-  let out = raw.replace(/\{[^}]*\}/gms, "");
-  // 2. If a lone "{" remains with no matching "}", drop everything after it
-  const openBrace = out.lastIndexOf("{");
-  const closeBrace = out.lastIndexOf("}");
-  if (openBrace > closeBrace) out = out.slice(0, openBrace);
+  let out = raw;
 
-  // 3. Remove NAGs ($13, $3, …)
-  out = out.replace(/\$\d+/g, "");
+  // 1 · strip { … } comments (incl. arrow tags [%cal …]) and NAGs $nn
+  out = out.replace(/\{[^}]*\}/gms, "").replace(/\$\d+/g, "");
+
+  // 2 · collapse crazy "5....." → "5..."  (two or more dots → exactly three)
+  out = out.replace(/\.{4,}/g, "...");   
+
+  // 3 · remove accidental double-spaces
+  out = out.replace(/\s{2,}/g, " ");
+
+  // 4 · drop an unterminated { …  at the tail *without* deleting moves after it
+  const open = out.lastIndexOf("{");
+  const close = out.lastIndexOf("}");
+  if (open > close) out = out.slice(0, open);
 
   return out.trim();
 }
@@ -74,16 +79,23 @@ function cleanPgn(raw: string): string {
  */
 export function parseGame(pgn: string): Node {
   const sanitized = cleanPgn(pgn);
-  const games = parsePGN(sanitized, { startRule: "games" });
-  if (!Array.isArray(games) || !games.length) throw new Error("No game found in PGN string.");
+  try {
+    const games = parsePGN(sanitized, { startRule: "games" });
+    if (!Array.isArray(games) || !games.length) throw new Error("No game object returned");
+    
+    const chess = new Chess();
+    const root: Node = { fen: chess.fen(), move: "", children: [] };
 
-  const chess = new Chess();
-  const root: Node = { fen: chess.fen(), move: "", children: [] };
+    if (import.meta.env.DEV) console.table((games[0] as any).moves.slice(0, 8));
 
-  if (import.meta.env.DEV) console.table((games[0] as any).moves.slice(0, 8));
-
-  buildTree((games[0] as any).moves, chess, root);
-  return root;
+    buildTree((games[0] as any).moves, chess, root);
+    return root;
+  } catch (err) {
+    // 👉 log once for easier debugging in the browser console
+    console.error("PGN parse error →", err);
+    console.info("=== Sanitised PGN start ===\n" + sanitized.slice(0, 400) + "…");
+    throw err;               // keep existing error flow
+  }
 }
 
 /** Recursively copy the PGN-AST into our own Node tree structure. */

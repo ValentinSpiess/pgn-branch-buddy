@@ -27,4 +27,9 @@ describe("parsePgnService", () => {
       "1.e4 e6 { huge comment (with (parentheses)) $6 $15 } 1... c5 2.d4 d5 *";
     expect(() => parseGame(messy)).not.toThrow();
   });
+
+  it("parses a move number written 5.....", () => {
+    const weird = "1.e4 e6 2.d4 d5 3.Nd2 c5 4.Ngf3 cxd4 5.....Nb5 *";
+    expect(() => parseGame(weird)).not.toThrow();
+  });
 });
