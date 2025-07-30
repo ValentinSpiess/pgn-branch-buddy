@@ -59,13 +59,19 @@ function cleanPgn(raw: string): string {
   // 1 · strip { … } comments (incl. arrow tags [%cal …]) and NAGs $nn
   out = out.replace(/\{[^}]*\}/gms, "").replace(/\$\d+/g, "");
 
-  // 2 · collapse crazy "5....." → "5..."  (two or more dots → exactly three)
+  // 2 · remove chess.com/lichess arrow annotations [%cal …] and [%csl …]
+  out = out.replace(/\[%cal [^\]]*\]/g, "").replace(/\[%csl [^\]]*\]/g, "");
+
+  // 3 · remove any other square bracket annotations [%xxx ...]
+  out = out.replace(/\[%[^\]]*\]/g, "");
+
+  // 4 · collapse crazy "5....." → "5..."  (two or more dots → exactly three)
   out = out.replace(/\.{4,}/g, "...");   
 
-  // 3 · remove accidental double-spaces
+  // 5 · remove accidental double-spaces
   out = out.replace(/\s{2,}/g, " ");
 
-  // 4 · drop an unterminated { …  at the tail *without* deleting moves after it
+  // 6 · drop an unterminated { …  at the tail *without* deleting moves after it
   const open = out.lastIndexOf("{");
   const close = out.lastIndexOf("}");
   if (open > close) out = out.slice(0, open);
